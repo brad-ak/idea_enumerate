@@ -20,7 +20,7 @@ import (
 )
 
 // Checks HTTP status of all paths
-func GetPaths(host string, filename string, path_list []string, client *http.Client) []string {
+func GetPaths(host string, filename string, pathList []string, client *http.Client) []string {
 
 	target := host + filename
 
@@ -47,23 +47,23 @@ func GetPaths(host string, filename string, path_list []string, client *http.Cli
 				path := string(scanner.Text()[index:])
 				index = strings.Index(path, "\"")
 				path = string(path[:index])
-				path_list = append(path_list, path)
+				pathList = append(pathList, path)
 			} else if strings.Contains(scanner.Text(), "filepath") {
 				index := strings.Index(scanner.Text(), "/.")
 				path := string(scanner.Text()[index:])
 				index = strings.Index(path, "\"")
 				path = string(path[:index])
-				path_list = append(path_list, path)
+				pathList = append(pathList, path)
 			}
 		}
 	}
 
-	return path_list
+	return pathList
 }
 
 // Takes a slice of paths and returns a slice of paths that return 200 codes
-func GetValidPaths(host string, path_list []string, threads int, client *http.Client) []string {
-	var valid_paths []string
+func GetValidPaths(host string, pathList []string, threads int, client *http.Client) []string {
+	var validPaths []string
 
 	spin := spinner.New(spinner.CharSets[1], 100*time.Millisecond)
 	spin.Prefix = "[*] Testing for valid file paths "
@@ -72,13 +72,13 @@ func GetValidPaths(host string, path_list []string, threads int, client *http.Cl
 	sem := make(chan bool, threads)
 	mut := &sync.Mutex{}
 
-	for _, path := range path_list {
+	for _, path := range pathList {
 		sem <- true
 		go func(path string) {
 			resp, _ := client.Get(host + path)
 			if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
 				mut.Lock()
-				valid_paths = append(valid_paths, path)
+				validPaths = append(validPaths, path)
 				mut.Unlock()
 			}
 			<-sem
@@ -89,17 +89,17 @@ func GetValidPaths(host string, path_list []string, threads int, client *http.Cl
 
 	fmt.Println("[!] Valid filepaths: ")
 
-	return valid_paths
+	return validPaths
 }
 
 // Download files from slice of succesful requests
-func DownloadFiles(host string, path_list []string, client *http.Client) {
+func DownloadFiles(host string, pathList []string, client *http.Client) {
 	u, _ := url.Parse(host)
 
 	// Create base directory for target
 	os.Mkdir(u.Host, os.ModePerm)
 
-	for _, fullpath := range path_list {
+	for _, fullpath := range pathList {
 		f, _ := url.Parse(fullpath)
 
 		fileName := path.Base(fullpath)
@@ -144,14 +144,14 @@ func CreateClient(proxy string) http.Client {
 		return *client
 
 	} else {
-		url_proxy, _ := url.Parse(proxy)
+		urlProxy, := url.Parse(proxy)
 
 		tr := &http.Transport{
 			MaxIdleConns:        30,
 			MaxIdleConnsPerHost: 30,
 			IdleConnTimeout:     30 * time.Second,
 			TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
-			Proxy:               http.ProxyURL(url_proxy),
+			Proxy:               http.ProxyURL(urlProxy),
 		}
 
 		client := &http.Client{Transport: tr}
@@ -173,18 +173,18 @@ func main() {
 
 	client := CreateClient(*proxyPtr)
 
-	var path_list []string
+	var pathList []string
 	filenames := []string{"/.idea/workspace.xml", "/.idea/modules.xml", "/.idea/misc.xml"}
 
 	// Take each file and return the slice of successes
 	for _, filename := range filenames {
-		path_list = GetPaths(*hostPtr, filename, path_list, &client)
+		pathList = GetPaths(*hostPtr, filename, pathList, &client)
 	}
 
-	fmt.Printf("[!] Found %d filepaths\n", len(path_list))
+	fmt.Printf("[!] Found %d filepaths\n", len(pathList))
 
-	valid_paths := GetValidPaths(*hostPtr, path_list, *threadsPtr, &client)
-	valid_paths = append(valid_paths, filenames...)
+	validPaths := GetValidPaths(*hostPtr, pathList, *threadsPtr, &client)
+	validPaths = append(validPaths, filenames...)
 
-	DownloadFiles(*hostPtr, valid_paths, &client)
+	DownloadFiles(*hostPtr, validPaths, &client)
 }
