@@ -6,6 +6,8 @@ The script checks the `/workspace.xml`, `/misc.xml`, and `/modules.xml` files fo
 
 Supports proxy and running multiple threads.
 
+Based loosely on the python version by @lijiegie 
+
 ## Usage
 
 ```
