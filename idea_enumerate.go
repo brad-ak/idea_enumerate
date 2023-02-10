@@ -88,7 +88,7 @@ func GetValidPaths(host string, pathList []string, threads int, client *http.Cli
 	for i := 0; i < cap(sem); i++ {
 		sem <- true
 	}
-	
+
 	spin.Stop()
 
 	fmt.Println("[!] Valid filepaths: ")
@@ -148,7 +148,7 @@ func CreateClient(proxy string) http.Client {
 		return *client
 
 	} else {
-		urlProxy, := url.Parse(proxy)
+		urlProxy, _ := url.Parse(proxy)
 
 		tr := &http.Transport{
 			MaxIdleConns:        30,
