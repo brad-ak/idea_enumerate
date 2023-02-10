@@ -97,40 +97,50 @@ func GetValidPaths(host string, pathList []string, threads int, client *http.Cli
 }
 
 // Download files from slice of succesful requests
-func DownloadFiles(host string, pathList []string, client *http.Client) {
+func DownloadFiles(host string, pathList []string, threads int, client *http.Client) {
 	u, _ := url.Parse(host)
 
 	// Create base directory for target
 	os.Mkdir(u.Host, os.ModePerm)
 
+	sem := make(chan bool, threads)
+
 	for _, fullpath := range pathList {
-		f, _ := url.Parse(fullpath)
+		sem <- true
+		go func(fullpath string) {
+			f, _ := url.Parse(fullpath)
 
-		fileName := path.Base(fullpath)
-		filePath := path.Dir(fullpath)
+			fileName := path.Base(fullpath)
+			filePath := path.Dir(fullpath)
 
-		// Take the full path of the file and mkdir for each leg of the path
-		os.MkdirAll(u.Host+filePath, os.ModePerm)
+			// Take the full path of the file and mkdir for each leg of the path
+			os.MkdirAll(u.Host+filePath, os.ModePerm)
 
-		fullFilePath := u.Scheme + "://" + u.Host + f.Path
+			fullFilePath := u.Scheme + "://" + u.Host + f.Path
 
-		// Create blank file
-		file, err := os.Create(u.Host + filePath + "/" + fileName)
-		if err != nil {
-			log.Fatal(err)
-		}
-		// Put content on file
-		resp, err := client.Get(fullFilePath)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer resp.Body.Close()
+			// Create blank file
+			file, err := os.Create(u.Host + filePath + "/" + fileName)
+			if err != nil {
+				log.Fatal(err)
+			}
+			// Put content on file
+			resp, err := client.Get(fullFilePath)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer resp.Body.Close()
 
-		size, err := io.Copy(file, resp.Body)
+			size, err := io.Copy(file, resp.Body)
 
-		defer file.Close()
+			defer file.Close()
 
-		fmt.Printf("Downloaded file %s with size %d\n", fileName, size)
+			fmt.Printf("Downloaded file %s with size %d\n", fileName, size)
+			<-sem
+		}(fullpath)
+	}
+
+	for i := 0, i < cap(sem); i++ {
+		sem <- true
 	}
 }
 
@@ -190,5 +200,5 @@ func main() {
 	validPaths := GetValidPaths(*hostPtr, pathList, *threadsPtr, &client)
 	validPaths = append(validPaths, filenames...)
 
-	DownloadFiles(*hostPtr, validPaths, &client)
+	DownloadFiles(*hostPtr, validPaths, *threadsPtr, &client)
 }
